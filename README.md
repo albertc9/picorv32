@@ -1,634 +1,504 @@
 [![.github/workflows/ci.yml](https://github.com/YosysHQ/picorv32/actions/workflows/ci.yml/badge.svg)](https://github.com/YosysHQ/picorv32/actions/workflows/ci.yml)
 
-PicoRV32 - A Size-Optimized RISC-V CPU
+PicoRV32 - 一款大小优化的RISC-V CPU
 ======================================
 
-PicoRV32 is a CPU core that implements the [RISC-V RV32IMC Instruction Set](http://riscv.org/).
-It can be configured as RV32E, RV32I, RV32IC, RV32IM, or RV32IMC core, and optionally
-contains a built-in interrupt controller.
+PicoRV32 是一个实现 [RISC-V RV32IMC 指令集](http://riscv.org/)的CPU核心。
+它可以配置为 RV32E、RV32I、RV32IC、RV32IM 或 RV32IMC 核心，并且可选地
+包含一个内建的中断控制器。
 
-Tools (gcc, binutils, etc..) can be obtained via the [RISC-V Website](https://riscv.org/software-status/).
-The examples bundled with PicoRV32 expect various RV32 toolchains to be installed in `/opt/riscv32i[m][c]`. See
-the [build instructions below](#building-a-pure-rv32i-toolchain) for details.
-Many Linux distributions now include the tools for RISC-V (for example
-Ubuntu 20.04 has `gcc-riscv64-unknown-elf`). To compile using those set
-`TOOLCHAIN_PREFIX` accordingly (eg. `make TOOLCHAIN_PREFIX=riscv64-unknown-elf-`).
+工具（gcc、binutils等）可以通过 [RISC-V官网](https://riscv.org/software-status/) 获取。
+PicoRV32附带的示例期望安装了不同的RV32工具链，路径为`/opt/riscv32i[m][c]`。详细信息请参见
+[下面的构建说明](#building-a-pure-rv32i-toolchain)。
+许多Linux发行版现在包含了RISC-V的工具链（例如，Ubuntu 20.04包含`gcc-riscv64-unknown-elf`）。
+要使用这些工具链进行编译，请相应设置`TOOLCHAIN_PREFIX`（例如，`make TOOLCHAIN_PREFIX=riscv64-unknown-elf-`）。
 
-PicoRV32 is free and open hardware licensed under the [ISC license](http://en.wikipedia.org/wiki/ISC_license)
-(a license that is similar in terms to the MIT license or the 2-clause BSD license).
+PicoRV32是自由开源硬件，遵循 [ISC许可证](http://en.wikipedia.org/wiki/ISC_license)
+（类似于MIT许可证或2条款BSD许可证）。
 
-#### Table of Contents
+#### 目录
 
-- [Features and Typical Applications](#features-and-typical-applications)
-- [Files in this Repository](#files-in-this-repository)
-- [Verilog Module Parameters](#verilog-module-parameters)
-- [Cycles per Instruction Performance](#cycles-per-instruction-performance)
-- [PicoRV32 Native Memory Interface](#picorv32-native-memory-interface)
-- [Pico Co-Processor Interface (PCPI)](#pico-co-processor-interface-pcpi)
-- [Custom Instructions for IRQ Handling](#custom-instructions-for-irq-handling)
-- [Building a pure RV32I Toolchain](#building-a-pure-rv32i-toolchain)
-- [Linking binaries with newlib for PicoRV32](#linking-binaries-with-newlib-for-picorv32)
-- [Evaluation: Timing and Utilization on Xilinx 7-Series FPGAs](#evaluation-timing-and-utilization-on-xilinx-7-series-fpgas)
+- [特性与典型应用](#features-and-typical-applications)
+- [本仓库中的文件](#files-in-this-repository)
+- [Verilog模块参数](#verilog-module-parameters)
+- [每条指令的周期性能](#cycles-per-instruction-performance)
+- [PicoRV32原生内存接口](#picorv32-native-memory-interface)
+- [Pico协处理器接口(PCPI)](#pico-co-processor-interface-pcpi)
+- [IRQ处理的自定义指令](#custom-instructions-for-irq-handling)
+- [构建纯RV32I工具链](#building-a-pure-rv32i-toolchain)
+- [使用newlib为PicoRV32链接二进制文件](#linking-binaries-with-newlib-for-picorv32)
+- [评估：在Xilinx 7系列FPGA上的时序和利用率](#evaluation-timing-and-utilization-on-xilinx-7-series-fpgas)
 
 
-Features and Typical Applications
+特性与典型应用
 ---------------------------------
 
-- Small (750-2000 LUTs in 7-Series Xilinx Architecture)
-- High f<sub>max</sub> (250-450 MHz on 7-Series Xilinx FPGAs)
-- Selectable native memory interface or AXI4-Lite master
-- Optional IRQ support (using a simple custom ISA)
-- Optional Co-Processor Interface
+- 小巧（7系列Xilinx架构中的750-2000 LUTs）
+- 高f<sub>max</sub>（7系列Xilinx FPGA上为250-450 MHz）
+- 可选择的原生内存接口或AXI4-Lite主接口
+- 可选的IRQ支持（使用简单的自定义ISA）
+- 可选的协处理器接口
 
-This CPU is meant to be used as auxiliary processor in FPGA designs and ASICs. Due
-to its high f<sub>max</sub> it can be integrated in most existing designs without crossing
-clock domains. When operated on a lower frequency, it will have a lot of timing
-slack and thus can be added to a design without compromising timing closure.
+该CPU旨在作为FPGA设计和ASIC中的辅助处理器使用。由于其高f<sub>max</sub>，它可以集成到大多数现有设计中，而无需跨越时钟域。当以较低频率运行时，它会有大量的时序冗余，因此可以在不影响时序收敛的情况下添加到设计中。
 
-For even smaller size it is possible disable support for registers `x16`..`x31` as
-well as `RDCYCLE[H]`, `RDTIME[H]`, and `RDINSTRET[H]` instructions, turning the
-processor into an RV32E core.
+为了更小的尺寸，可以禁用对寄存器`x16`..`x31`以及`RDCYCLE[H]`、`RDTIME[H]`和`RDINSTRET[H]`指令的支持，将处理器转换为RV32E核心。
 
-Furthermore it is possible to choose between a dual-port and a single-port
-register file implementation. The former provides better performance while
-the latter results in a smaller core.
+此外，还可以选择双端口寄存器文件和单端口寄存器文件的实现。前者提供更好的性能，而后者则产生更小的核心。
 
-*Note: In architectures that implement the register file in dedicated memory
-resources, such as many FPGAs, disabling the 16 upper registers and/or
-disabling the dual-port register file may not further reduce the core size.*
+*注意：在实现寄存器文件的架构中（例如许多FPGA），禁用16个上层寄存器和/或禁用双端口寄存器文件可能不会进一步减少核心尺寸。*
 
-The core exists in three variations: `picorv32`, `picorv32_axi` and `picorv32_wb`.
-The first provides a simple native memory interface, that is easy to use in simple
-environments. `picorv32_axi` provides an AXI-4 Lite Master interface that can
-easily be integrated with existing systems that are already using the AXI
-standard. `picorv32_wb` provides a Wishbone master interface.
+该核心存在三种变体：`picorv32`、`picorv32_axi`和`picorv32_wb`。
+第一种提供一个简单的原生内存接口，适用于简单环境。`picorv32_axi`提供一个AXI-4 Lite主接口，可以
+轻松与已经使用AXI标准的现有系统集成。`picorv32_wb`提供一个Wishbone主接口。
 
-A separate core `picorv32_axi_adapter` is provided to bridge between the native
-memory interface and AXI4. This core can be used to create custom cores that
-include one or more PicoRV32 cores together with local RAM, ROM, and
-memory-mapped peripherals, communicating with each other using the native
-interface, and communicating with the outside world via AXI4.
+提供了一个单独的核心`picorv32_axi_adapter`，用于在原生内存接口与AXI4之间进行桥接。
+此核心可用于创建自定义核心，其中包含一个或多个PicoRV32核心，并与本地RAM、ROM和
+内存映射外设共同工作，彼此之间使用原生接口通信，并通过AXI4与外部世界通信。
 
-The optional IRQ feature can be used to react to events from the outside, implement
-fault handlers, or catch instructions from a larger ISA and emulate them in
-software.
+可选的IRQ特性可以用于响应外部事件，实施故障处理程序，或捕获来自更大ISA的指令并在软件中模拟它们。
 
-The optional Pico Co-Processor Interface (PCPI) can be used to implement
-non-branching instructions in an external coprocessor. Implementations
-of PCPI cores that implement the M Standard Extension instructions
-`MUL[H[SU|U]]` and `DIV[U]/REM[U]` are included in this package.
+可选的Pico协处理器接口（PCPI）可用于在外部协处理器中实现非分支指令。
+本包中包含实现M标准扩展指令`MUL[H[SU|U]]`和`DIV[U]/REM[U]`的PCPI核心实现。
 
-
-Files in this Repository
+本仓库中的文件
 ------------------------
 
 #### README.md
 
-You are reading it right now.
+您正在阅读的正是此文件。
 
 #### picorv32.v
 
-This Verilog file contains the following Verilog modules:
+此Verilog文件包含以下Verilog模块：
 
-| Module                   | Description                                                           |
-| ------------------------ | --------------------------------------------------------------------- |
-| `picorv32`               | The PicoRV32 CPU                                                      |
-| `picorv32_axi`           | The version of the CPU with AXI4-Lite interface                       |
-| `picorv32_axi_adapter`   | Adapter from PicoRV32 Memory Interface to AXI4-Lite                   |
-| `picorv32_wb`            | The version of the CPU with Wishbone Master interface                 |
-| `picorv32_pcpi_mul`      | A PCPI core that implements the `MUL[H[SU\|U]]` instructions          |
-| `picorv32_pcpi_fast_mul` | A version of `picorv32_pcpi_fast_mul` using a single cycle multiplier |
-| `picorv32_pcpi_div`      | A PCPI core that implements the `DIV[U]/REM[U]` instructions          |
+| 模块                     | 描述                                                                 |
+| ------------------------ | -------------------------------------------------------------------- |
+| `picorv32`               | PicoRV32 CPU核心                                                     |
+| `picorv32_axi`           | 带有AXI4-Lite接口的CPU版本                                           |
+| `picorv32_axi_adapter`   | 从PicoRV32内存接口到AXI4-Lite的适配器                                |
+| `picorv32_wb`            | 带有Wishbone主接口的CPU版本                                          |
+| `picorv32_pcpi_mul`      | 实现`MUL[H[SU|U]]`指令的PCPI核心                                     |
+| `picorv32_pcpi_fast_mul` | 使用单周期乘法器的`picorv32_pcpi_fast_mul`版本                       |
+| `picorv32_pcpi_div`      | 实现`DIV[U]/REM[U]`指令的PCPI核心                                    |
 
-Simply copy this file into your project.
+只需将此文件复制到您的项目中。
 
-#### Makefile and testbenches
+#### Makefile和testbenches
 
-A basic test environment. Run `make test` to run the standard test bench (`testbench.v`)
-in the standard configurations. There are other test benches and configurations. See
-the `test_*` make target in the Makefile for details.
+一个基本的测试环境。运行`make test`来运行标准测试平台(`testbench.v`)
+以及标准配置。还有其他测试平台和配置，请参阅
+Makefile中的`test_*`目标以了解详情。
 
-Run `make test_ez` to run `testbench_ez.v`, a very simple test bench that does
-not require an external firmware .hex file. This can be useful in environments
-where the RISC-V compiler toolchain is not available.
+运行`make test_ez`来运行`testbench_ez.v`，这是一个非常简单的测试平台，无需外部固件.hex文件。
+这对于RISC-V编译工具链不可用的环境非常有用。
 
-*Note: The test bench is using Icarus Verilog. However, Icarus Verilog 0.9.7
-(the latest release at the time of writing) has a few bugs that prevent the
-test bench from running. Upgrade to the latest github master of Icarus Verilog
-to run the test bench.*
+*注意：该测试平台使用Icarus Verilog。但是，Icarus Verilog 0.9.7（写作时的最新版本）
+有一些BUG会阻止测试平台运行。升级到Icarus Verilog的最新github主分支以运行测试平台。*
 
 #### firmware/
 
-A simple test firmware. This runs the basic tests from `tests/`, some C code, tests IRQ
-handling and the multiply PCPI core.
+一个简单的测试固件。它运行来自`tests/`的基本测试，某些C代码，测试IRQ
+处理和乘法PCPI核心。
 
-All the code in `firmware/` is in the public domain. Simply copy whatever you can use.
+`firmware/`中的所有代码都属于公有领域。只需复制您可以使用的部分。
 
 #### tests/
 
-Simple instruction-level tests from [riscv-tests](https://github.com/riscv/riscv-tests).
+来自[riscv-tests](https://github.com/riscv/riscv-tests)的简单指令级测试。
 
 #### dhrystone/
 
-Another simple test firmware that runs the Dhrystone benchmark.
+另一个简单的测试固件，运行Dhrystone基准测试。
 
 #### picosoc/
 
-A simple example SoC using PicoRV32 that can execute code directly from a
-memory mapped SPI flash.
+一个使用PicoRV32的简单示例SoC，可以直接从
+内存映射的SPI闪存执行代码。
 
 #### scripts/
 
-Various scripts and examples for different (synthesis) tools and hardware architectures.
+用于不同（综合）工具和硬件架构的各种脚本和示例。
 
-
-Verilog Module Parameters
+Verilog模块参数
 -------------------------
 
-The following Verilog module parameters can be used to configure the PicoRV32
-core.
+以下Verilog模块参数可用于配置PicoRV32
+核心。
 
-#### ENABLE_COUNTERS (default = 1)
+#### ENABLE_COUNTERS（默认值= 1）
 
-This parameter enables support for the `RDCYCLE[H]`, `RDTIME[H]`, and
-`RDINSTRET[H]` instructions. This instructions will cause a hardware
-trap (like any other unsupported instruction) if `ENABLE_COUNTERS` is set to zero.
+此参数启用对`RDCYCLE[H]`、`RDTIME[H]`和
+`RDINSTRET[H]`指令的支持。如果将`ENABLE_COUNTERS`设置为零，这些指令将会导致硬件
+陷阱（与任何其他不支持的指令一样）。
 
-*Note: Strictly speaking the `RDCYCLE[H]`, `RDTIME[H]`, and `RDINSTRET[H]`
-instructions are not optional for an RV32I core. But chances are they are not
-going to be missed after the application code has been debugged and profiled.
-This instructions are optional for an RV32E core.*
+*注意：严格来说，`RDCYCLE[H]`、`RDTIME[H]`和`RDINSTRET[H]`
+指令对于RV32I核心是必须的。但是，在应用程序代码经过调试和性能分析之后，
+这些指令通常不会被遗漏。对于RV32E核心，这些指令是可选的。*
 
-#### ENABLE_COUNTERS64 (default = 1)
+#### ENABLE_COUNTERS64（默认值= 1）
 
-This parameter enables support for the `RDCYCLEH`, `RDTIMEH`, and `RDINSTRETH`
-instructions. If this parameter is set to 0, and `ENABLE_COUNTERS` is set to 1,
-then only the `RDCYCLE`, `RDTIME`, and `RDINSTRET` instructions are available.
+此参数启用对`RDCYCLEH`、`RDTIMEH`和`RDINSTRETH`
+指令的支持。如果此参数设置为0，并且`ENABLE_COUNTERS`设置为1，
+则只会提供`RDCYCLE`、`RDTIME`和`RDINSTRET`指令。
 
-#### ENABLE_REGS_16_31 (default = 1)
+#### ENABLE_REGS_16_31（默认值= 1）
 
-This parameter enables support for registers the `x16`..`x31`. The RV32E ISA
-excludes this registers. However, the RV32E ISA spec requires a hardware trap
-for when code tries to access this registers. This is not implemented in PicoRV32.
+此参数启用对
 
-#### ENABLE_REGS_DUALPORT (default = 1)
+寄存器`x16`..`x31`的支持。RV32E ISA
+排除了这些寄存器。然而，RV32E ISA规范要求在访问这些寄存器时触发硬件陷阱。
+PicoRV32未实现这一点。
 
-The register file can be implemented with two or one read ports. A dual ported
-register file improves performance a bit, but can also increase the size of
-the core.
+#### ENABLE_REGS_DUALPORT（默认值= 1）
 
-#### LATCHED_MEM_RDATA (default = 0)
+寄存器文件可以使用两个或一个读端口实现。双端口
+寄存器文件提高了性能，但也可能增加
+核心的大小。
 
-Set this to 1 if the `mem_rdata` is kept stable by the external circuit after a
-transaction. In the default configuration the PicoRV32 core only expects the
-`mem_rdata` input to be valid in the cycle with `mem_valid && mem_ready` and
-latches the value internally.
+#### LATCHED_MEM_RDATA（默认值= 0）
 
-This parameter is only available for the `picorv32` core. In the
-`picorv32_axi` and `picorv32_wb` core this is implicitly set to 0.
+如果在事务后外部电路保持`mem_rdata`稳定，请将此值设置为1。
+在默认配置中，PicoRV32核心只期望`mem_rdata`输入在`mem_valid && mem_ready`的周期内有效，并将值
+内部锁存。
 
-#### TWO_STAGE_SHIFT (default = 1)
+此参数仅适用于`picorv32`核心。在
+`picorv32_axi`和`picorv32_wb`核心中，此参数隐式设置为0。
 
-By default shift operations are performed in two stages: first shifts in units
-of 4 bits and then shifts in units of 1 bit. This speeds up shift operations,
-but adds additional hardware. Set this parameter to 0 to disable the two-stage
-shift to further reduce the size of the core.
+#### TWO_STAGE_SHIFT（默认值= 1）
 
-#### BARREL_SHIFTER (default = 0)
+默认情况下，移位操作分为两阶段进行：首先按4位单位进行移位，然后按1位单位进行移位。这加速了移位操作，
+但增加了额外的硬件。如果将此参数设置为0，则禁用两阶段
+移位，以进一步减少核心的大小。
 
-By default shift operations are performed by successively shifting by a
-small amount (see `TWO_STAGE_SHIFT` above). With this option set, a barrel
-shifter is used instead.
+#### BARREL_SHIFTER（默认值= 0）
 
-#### TWO_CYCLE_COMPARE (default = 0)
+默认情况下，移位操作通过逐步移位的小量（参见上面的`TWO_STAGE_SHIFT`）进行。启用此选项后，使用一个桶形
+移位器来进行操作。
 
-This relaxes the longest data path a bit by adding an additional FF stage
-at the cost of adding an additional clock cycle delay to the conditional
-branch instructions.
+#### TWO_CYCLE_COMPARE（默认值 = 0）
 
-*Note: Enabling this parameter will be most effective when retiming (aka
-"register balancing") is enabled in the synthesis flow.*
+此参数通过在最长数据路径中添加一个额外的FF阶段来稍微放宽时序，但会使条件分支指令的延迟增加一个额外的时钟周期。
 
-#### TWO_CYCLE_ALU (default = 0)
+*注意：启用此参数在进行时序重排（即“寄存器平衡”）时最为有效。*
 
-This adds an additional FF stage in the ALU data path, improving timing
-at the cost of an additional clock cycle for all instructions that use
-the ALU.
+#### TWO_CYCLE_ALU（默认值 = 0）
 
-*Note: Enabling this parameter will be most effective when retiming (aka
-"register balancing") is enabled in the synthesis flow.*
+此参数在ALU数据路径中增加一个额外的FF阶段，提高时序性能，但会导致所有使用ALU的指令增加一个时钟周期的延迟。
 
-#### COMPRESSED_ISA (default = 0)
+*注意：启用此参数在进行时序重排（即“寄存器平衡”）时最为有效。*
 
-This enables support for the RISC-V Compressed Instruction Set.
+#### COMPRESSED_ISA（默认值 = 0）
 
-#### CATCH_MISALIGN (default = 1)
+此参数启用对RISC-V压缩指令集的支持。
 
-Set this to 0 to disable the circuitry for catching misaligned memory
-accesses.
+#### CATCH_MISALIGN（默认值 = 1）
 
-#### CATCH_ILLINSN (default = 1)
+将此值设置为0以禁用捕获内存对齐错误的电路。
 
-Set this to 0 to disable the circuitry for catching illegal instructions.
+#### CATCH_ILLINSN（默认值 = 1）
 
-The core will still trap on `EBREAK` instructions with this option
-set to 0. With IRQs enabled, an `EBREAK` normally triggers an IRQ 1. With
-this option set to 0, an `EBREAK` will trap the processor without
-triggering an interrupt.
+将此值设置为0以禁用捕获非法指令的电路。
 
-#### ENABLE_PCPI (default = 0)
+即使此选项设置为0，核心仍会对`EBREAK`指令进行陷阱。启用IRQ时，`EBREAK`通常会触发IRQ 1。将此选项设置为0时，`EBREAK`将使处理器陷阱，而不触发中断。
 
-Set this to 1 to enable the _external_ Pico Co-Processor Interface (PCPI).
-The external interface is not required for the internal PCPI cores, such as
-`picorv32_pcpi_mul`.
+#### ENABLE_PCPI（默认值 = 0）
 
-#### ENABLE_MUL (default = 0)
+将此值设置为1以启用外部Pico协处理器接口（PCPI）。对于像`picorv32_pcpi_mul`这样的内部PCPI核心，不需要外部接口。
 
-This parameter internally enables PCPI and instantiates the `picorv32_pcpi_mul`
-core that implements the `MUL[H[SU|U]]` instructions. The external PCPI
-interface only becomes functional when ENABLE_PCPI is set as well.
+#### ENABLE_MUL（默认值 = 0）
 
-#### ENABLE_FAST_MUL (default = 0)
+此参数启用PCPI，并实例化`picorv32_pcpi_mul`核心，来实现`MUL[H[SU|U]]`指令。仅当同时设置`ENABLE_PCPI`时，外部PCPI接口才会生效。
 
-This parameter internally enables PCPI and instantiates the `picorv32_pcpi_fast_mul`
-core that implements the `MUL[H[SU|U]]` instructions. The external PCPI
-interface only becomes functional when ENABLE_PCPI is set as well.
+#### ENABLE_FAST_MUL（默认值 = 0）
 
-If both ENABLE_MUL and ENABLE_FAST_MUL are set then the ENABLE_MUL setting
-will be ignored and the fast multiplier core will be instantiated.
+此参数启用PCPI，并实例化`picorv32_pcpi_fast_mul`核心，来实现`MUL[H[SU|U]]`指令。仅当同时设置`ENABLE_PCPI`时，外部PCPI接口才会生效。
 
-#### ENABLE_DIV (default = 0)
+如果同时设置了`ENABLE_MUL`和`ENABLE_FAST_MUL`，则会忽略`ENABLE_MUL`设置，并实例化快速乘法器核心。
 
-This parameter internally enables PCPI and instantiates the `picorv32_pcpi_div`
-core that implements the `DIV[U]/REM[U]` instructions. The external PCPI
-interface only becomes functional when ENABLE_PCPI is set as well.
+#### ENABLE_DIV（默认值 = 0）
 
-#### ENABLE_IRQ (default = 0)
+此参数启用PCPI，并实例化`picorv32_pcpi_div`核心，来实现`DIV[U]/REM[U]`指令。仅当同时设置`ENABLE_PCPI`时，外部PCPI接口才会生效。
 
-Set this to 1 to enable IRQs. (see "Custom Instructions for IRQ Handling" below
-for a discussion of IRQs)
+#### ENABLE_IRQ（默认值 = 0）
 
-#### ENABLE_IRQ_QREGS (default = 1)
+将此值设置为1以启用IRQ。（参见下文的“IRQ处理的自定义指令”部分，了解IRQ的详细讨论）
 
-Set this to 0 to disable support for the `getq` and `setq` instructions. Without
-the q-registers, the irq return address will be stored in x3 (gp) and the IRQ
-bitmask in x4 (tp), the global pointer and thread pointer registers according
-to the RISC-V ABI.  Code generated from ordinary C code will not interact with
-those registers.
+#### ENABLE_IRQ_QREGS（默认值 = 1）
 
-Support for q-registers is always disabled when ENABLE_IRQ is set to 0.
+将此值设置为0以禁用对`getq`和`setq`指令的支持。如果没有q寄存器，IRQ返回地址将存储在x3（gp）寄存器中，IRQ位掩码存储在x4（tp）寄存器中，分别是全局指针和线程指针寄存器，符合RISC-V ABI规范。普通C代码生成的代码将不会与这些寄存器交互。
 
-#### ENABLE_IRQ_TIMER (default = 1)
+当`ENABLE_IRQ`设置为0时，q寄存器的支持始终被禁用。
 
-Set this to 0 to disable support for the `timer` instruction.
+#### ENABLE_IRQ_TIMER（默认值 = 1）
 
-Support for the timer is always disabled when ENABLE_IRQ is set to 0.
+将此值设置为0以禁用对`timer`指令的支持。
 
-#### ENABLE_TRACE (default = 0)
+当`ENABLE_IRQ`设置为0时，始终禁用定时器支持。
 
-Produce an execution trace using the `trace_valid` and `trace_data` output ports.
-For a demonstration of this feature run `make test_vcd` to create a trace file
-and then run `python3 showtrace.py testbench.trace firmware/firmware.elf` to decode
-it.
+#### ENABLE_TRACE（默认值 = 0）
 
-#### REGS_INIT_ZERO (default = 0)
+通过`trace_valid`和`trace_data`输出端口生成执行跟踪。
+要演示此功能，请运行`make test_vcd`以创建跟踪文件，然后运行`python3 showtrace.py testbench.trace firmware/firmware.elf`进行解码。
 
-Set this to 1 to initialize all registers to zero (using a Verilog `initial` block).
-This can be useful for simulation or formal verification.
+#### REGS_INIT_ZERO（默认值 = 0）
 
-#### MASKED_IRQ (default = 32'h 0000_0000)
+将此值设置为1以将所有寄存器初始化为零（使用Verilog的`initial`块）。这对于仿真或形式验证非常有用。
 
-A 1 bit in this bitmask corresponds to a permanently disabled IRQ.
+#### MASKED_IRQ（默认值 = 32'h 0000_0000）
 
-#### LATCHED_IRQ (default = 32'h ffff_ffff)
+此位掩码中的1位对应于永久禁用的IRQ。
 
-A 1 bit in this bitmask indicates that the corresponding IRQ is "latched", i.e.
-when the IRQ line is high for only one cycle, the interrupt will be marked as
-pending and stay pending until the interrupt handler is called (aka "pulse
-interrupts" or "edge-triggered interrupts").
+#### LATCHED_IRQ（默认值 = 32'h ffff_ffff）
 
-Set a bit in this bitmask to 0 to convert an interrupt line to operate
-as "level sensitive" interrupt.
+此位掩码中的1位表示相应的IRQ是“锁存”的，即当IRQ线高电平仅持续一个时钟周期时，interrupt将被标记为待处理，并保持待处理状态，直到中断处理程序被调用（也称为“脉冲中断”或“边沿触发中断”）。
 
-#### PROGADDR_RESET (default = 32'h 0000_0000)
+将此位掩码中的某个位设置为0，可以将中断线路转换为“电平敏感”的中断。
 
-The start address of the program.
+#### PROGADDR_RESET（默认值 = 32'h 0000_0000）
 
-#### PROGADDR_IRQ (default = 32'h 0000_0010)
+程序的起始地址。
 
-The start address of the interrupt handler.
+#### PROGADDR_IRQ（默认值 = 32'h 0000_0010）
 
-#### STACKADDR (default = 32'h ffff_ffff)
+中断处理程序的起始地址。
 
-When this parameter has a value different from 0xffffffff, then register `x2` (the
-stack pointer) is initialized to this value on reset. (All other registers remain
-uninitialized.) Note that the RISC-V calling convention requires the stack pointer
-to be aligned on 16 bytes boundaries (4 bytes for the RV32I soft float calling
-convention).
+#### STACKADDR（默认值 = 32'h ffff_ffff）
 
+当此参数的值不同于0xffffffff时，寄存器`x2`（堆栈指针）将在复位时初始化为此值。（其他所有寄存器保持未初始化。）请注意，RISC-V调用约定要求堆栈指针对齐到16字节边界（RV32I软浮动调用约定需要对齐到4字节）。
 
-Cycles per Instruction Performance
+每条指令的周期性能
 ----------------------------------
 
-*A short reminder: This core is optimized for size and f<sub>max</sub>, not performance.*
+*简单提醒：此核心优化侧重于尺寸和f<sub>max</sub>，而不是性能。*
 
-Unless stated otherwise, the following numbers apply to a PicoRV32 with
-ENABLE_REGS_DUALPORT active and connected to a memory that can accommodate
-requests within one clock cycle.
+除非另有说明，以下数字适用于启用`ENABLE_REGS_DUALPORT`并连接到能够在一个时钟周期内处理请求的内存的PicoRV32。
 
-The average Cycles per Instruction (CPI) is approximately 4, depending on the mix of
-instructions in the code. The CPI numbers for the individual instructions can
-be found in the table below. The column "CPI (SP)" contains the CPI numbers for
-a core built without ENABLE_REGS_DUALPORT.
+平均每条指令的周期数（CPI）约为4，具体取决于代码中指令的组合。个别指令的CPI数字可以
+在下表中找到。表中的"CPI (SP)"列包含没有启用`ENABLE_REGS_DUALPORT`的核心的CPI值。
 
-| Instruction          |  CPI | CPI (SP) |
-| ---------------------| ----:| --------:|
-| direct jump (jal)    |    3 |        3 |
-| ALU reg + immediate  |    3 |        3 |
-| ALU reg + reg        |    3 |        4 |
-| branch (not taken)   |    3 |        4 |
-| memory load          |    5 |        5 |
-| memory store         |    5 |        6 |
-| branch (taken)       |    5 |        6 |
-| indirect jump (jalr) |    6 |        6 |
-| shift operations     | 4-14 |     4-15 |
+| 指令                   |  CPI | CPI (SP) |
+| ---------------------- | ----:| --------:|
+| 直接跳转（jal）         |    3 |        3 |
+| ALU寄存器 + 立即数      |    3 |        3 |
+| ALU寄存器 + 寄存器      |    3 |        4 |
+| 分支（未取）            |    3 |        4 |
+| 内存加载                |    5 |        5 |
+| 内存存储                |    5 |        6 |
+| 分支（已取）            |    5 |        6 |
+| 间接跳转（jalr）        |    6 |        6 |
+| 移位操作                | 4-14 |     4-15 |
 
-When `ENABLE_MUL` is activated, then a `MUL` instruction will execute
-in 40 cycles and a `MULH[SU|U]` instruction will execute in 72 cycles.
+当`ENABLE_MUL`启用时，`MUL`指令将在40个周期内执行，`MULH[SU|U]`指令将在72个周期内执行。
 
-When `ENABLE_DIV` is activated, then a `DIV[U]/REM[U]` instruction will
-execute in 40 cycles.
+当`ENABLE_DIV`启用时，`DIV[U]/REM[U]`指令将在40个周期内执行。
 
-When `BARREL_SHIFTER` is activated, a shift operation takes as long as
-any other ALU operation.
+当启用`BARREL_SHIFTER`时，移位操作的时间与其他ALU操作相同。
 
-The following dhrystone benchmark results are for a core with enabled
-`ENABLE_FAST_MUL`, `ENABLE_DIV`, and `BARREL_SHIFTER` options.
+以下是启用了`ENABLE_FAST_MUL`、`ENABLE_DIV`和`BARREL_SHIFTER`选项的核心的Dhrystone基准测试结果。
 
-Dhrystone benchmark results: 0.516 DMIPS/MHz (908 Dhrystones/Second/MHz)
+Dhrystone基准测试结果：0.516 DMIPS/MHz（908 Dhrystones/秒/MHz）
 
-For the Dhrystone benchmark the average CPI is 4.100.
+对于Dhrystone基准，平均CPI为4.100。
 
-Without using the look-ahead memory interface (usually required for max
-clock speed), this results drop to 0.305 DMIPS/MHz and 5.232 CPI.
+在没有使用前瞻内存接口（通常需要为最大时钟频率）的情况下，结果下降到0.305 DMIPS/MHz和5.232 CPI。
 
 
-PicoRV32 Native Memory Interface
+PicoRV32原生内存接口
 --------------------------------
 
-The native memory interface of PicoRV32 is a simple valid-ready interface
-that can run one memory transfer at a time:
+PicoRV32的原生内存接口是一个简单的有效-准备接口，能够一次运行一个内存传输：
 
-    output        mem_valid
-    output        mem_instr
-    input         mem_ready
+    输出        mem_valid
+    输出        mem_instr
+    输入         mem_ready
 
-    output [31:0] mem_addr
-    output [31:0] mem_wdata
-    output [ 3:0] mem_wstrb
-    input  [31:0] mem_rdata
+    输出 [31:0] mem_addr
+    输出 [31:0] mem_wdata
+    输出 [ 3:0] mem_wstrb
+    输入  [31:0] mem_rdata
 
-The core initiates a memory transfer by asserting `mem_valid`. The valid
-signal stays high until the peer asserts `mem_ready`. All core outputs
-are stable over the `mem_valid` period. If the memory transfer is an
-instruction fetch, the core asserts `mem_instr`.
+核心通过使`mem_valid`有效来启动内存传输。有效信号将保持高电平，直到对端使`mem_ready`有效。所有核心输出在`mem_valid`周期内是稳定的。如果内存传输是指令获取，核心会使`mem_instr`有效。
 
-#### Read Transfer
+#### 读传输
 
-In a read transfer `mem_wstrb` has the value 0 and `mem_wdata` is unused.
+在读传输中，`mem_wstrb`的值为0，`mem_wdata`无效。
 
-The memory reads the address `mem_addr` and makes the read value available on
-`mem_rdata` in the cycle `mem_ready` is high.
+内存读取`mem_addr`地址，并在`mem_ready`高电平的周期内将读取值提供到`mem_rdata`。
 
-There is no need for an external wait cycle. The memory read can be implemented
-asynchronously with `mem_ready` going high in the same cycle as `mem_valid`, or
-`mem_ready` being tied to constant 1.
+不需要外部等待周期
 
-#### Write Transfer
+。内存读取可以是异步的，`mem_ready`和`mem_valid`在同一周期内变高，或者`mem_ready`被绑定为常量1。
 
-In a write transfer `mem_wstrb` is not 0 and `mem_rdata` is unused. The memory
-write the data at `mem_wdata` to the address `mem_addr` and acknowledges the
-transfer by asserting `mem_ready`.
+#### 写传输
 
-The 4 bits of `mem_wstrb` are write enables for the four bytes in the addressed
-word. Only the 8 values `0000`, `1111`, `1100`, `0011`, `1000`, `0100`, `0010`,
-and `0001` are possible, i.e. no write, write 32 bits, write upper 16 bits,
-write lower 16, or write a single byte respectively.
+在写传输中，`mem_wstrb`非0，`mem_rdata`无效。内存将数据写入`mem_wdata`到`mem_addr`地址，并通过使`mem_ready`有效来确认传输。
 
-There is no need for an external wait cycle. The memory can acknowledge the
-write immediately  with `mem_ready` going high in the same cycle as
-`mem_valid`, or `mem_ready` being tied to constant 1.
+`mem_wstrb`的4位是写使能位，用于地址中指定字的四个字节。只有8个值`0000`、`1111`、`1100`、`0011`、`1000`、`0100`、`0010`和`0001`是有效的，即：不写、写32位、写上16位、写下16位或写一个字节。
 
-#### Look-Ahead Interface
+不需要外部等待周期。内存可以立即确认写操作，`mem_ready`在同一周期内变高，或`mem_ready`被绑定为常量1。
 
-The PicoRV32 core also provides a "Look-Ahead Memory Interface" that provides
-all information about the next memory transfer one clock cycle earlier than the
-normal interface.
+#### 前瞻接口
 
-    output        mem_la_read
-    output        mem_la_write
-    output [31:0] mem_la_addr
-    output [31:0] mem_la_wdata
-    output [ 3:0] mem_la_wstrb
+PicoRV32核心还提供了一个“前瞻内存接口”，它比正常接口提前一个时钟周期提供有关下一个内存传输的所有信息。
 
-In the clock cycle before `mem_valid` goes high, this interface will output a
-pulse on `mem_la_read` or `mem_la_write` to indicate the start of a read or
-write transaction in the next clock cycle.
+    输出        mem_la_read
+    输出        mem_la_write
+    输出 [31:0] mem_la_addr
+    输出 [31:0] mem_la_wdata
+    输出 [ 3:0] mem_la_wstrb
 
-*Note: The signals `mem_la_read`, `mem_la_write`, and `mem_la_addr` are driven
-by combinatorial circuits within the PicoRV32 core. It might be harder to
-achieve timing closure with the look-ahead interface than with the normal
-memory interface described above.*
+在`mem_valid`变高的前一个时钟周期，此接口将输出`mem_la_read`或`mem_la_write`的脉冲，以指示下一时钟周期将开始读或写操作。
+
+*注意：信号`mem_la_read`、`mem_la_write`和`mem_la_addr`由PicoRV32核心内的组合电路驱动。使用前瞻接口时，可能比使用上述正常内存接口更难实现时序收敛。*
 
 
-Pico Co-Processor Interface (PCPI)
+Pico协处理器接口（PCPI）
 ----------------------------------
 
-The Pico Co-Processor Interface (PCPI) can be used to implement non-branching
-instructions in external cores:
+Pico协处理器接口（PCPI）
+----------------------------------
 
-    output        pcpi_valid
-    output [31:0] pcpi_insn
-    output [31:0] pcpi_rs1
-    output [31:0] pcpi_rs2
-    input         pcpi_wr
-    input  [31:0] pcpi_rd
-    input         pcpi_wait
-    input         pcpi_ready
+Pico协处理器接口（PCPI）可以用于在外部核心中实现非分支指令：
 
-When an unsupported instruction is encountered and the PCPI feature is
-activated (see ENABLE_PCPI above), then `pcpi_valid` is asserted, the
-instruction word itself is output on `pcpi_insn`, the `rs1` and `rs2`
-fields are decoded and the values in those registers are output
-on `pcpi_rs1` and `pcpi_rs2`.
+    输出        pcpi_valid
+    输出 [31:0] pcpi_insn
+    输出 [31:0] pcpi_rs1
+    输出 [31:0] pcpi_rs2
+    输入         pcpi_wr
+    输入  [31:0] pcpi_rd
+    输入         pcpi_wait
+    输入         pcpi_ready
 
-An external PCPI core can then decode the instruction, execute it, and assert
-`pcpi_ready` when execution of the instruction is finished. Optionally a
-result value can be written to `pcpi_rd` and `pcpi_wr` asserted. The
-PicoRV32 core will then decode the `rd` field of the instruction and
-write the value from `pcpi_rd` to the respective register.
+当遇到不支持的指令且启用了PCPI特性时（参见上文的`ENABLE_PCPI`），
+`pcpi_valid`会被置为高，指令字本身会输出到`pcpi_insn`，`rs1`和`rs2`字段会被解码，
+并且它们的值会通过`pcpi_rs1`和`pcpi_rs2`输出。
 
-When no external PCPI core acknowledges the instruction within 16 clock
-cycles, then an illegal instruction exception is raised and the respective
-interrupt handler is called. A PCPI core that needs more than a couple of
-cycles to execute an instruction, should assert `pcpi_wait` as soon as
-the instruction has been decoded successfully and keep it asserted until
-it asserts `pcpi_ready`. This will prevent the PicoRV32 core from raising
-an illegal instruction exception.
+外部PCPI核心可以解码指令、执行它，并在指令执行完成时使`pcpi_ready`有效。
+可选地，结果值可以写入`pcpi_rd`，并使`pcpi_wr`有效。PicoRV32核心随后会解码指令中的`rd`字段，
+并将`pcpi_rd`中的值写入相应的寄存器。
+
+当没有外部PCPI核心在16个时钟周期内响应指令时，系统会触发非法指令异常，并调用相应的中断处理程序。
+如果一个PCPI核心需要更多的时钟周期来执行指令，则应该在成功解码指令后尽早使`pcpi_wait`有效，
+并在`pcpi_ready`有效之前一直保持`pcpi_wait`有效。这将防止PicoRV32核心触发非法指令异常。
 
 
-Custom Instructions for IRQ Handling
+IRQ处理的自定义指令
 ------------------------------------
 
-*Note: The IRQ handling features in PicoRV32 do not follow the RISC-V
-Privileged ISA specification. Instead a small set of very simple custom
-instructions is used to implement IRQ handling with minimal hardware
-overhead.*
+*注意：PicoRV32中的IRQ处理功能不遵循RISC-V特权ISA规范。相反，使用一小套非常简单的自定义指令来实现IRQ处理，具有最小的硬件开销。*
 
-The following custom instructions are only supported when IRQs are enabled
-via the `ENABLE_IRQ` parameter (see above).
+以下自定义指令仅在通过`ENABLE_IRQ`参数启用IRQ时支持（见上文）。
 
-The PicoRV32 core has a built-in interrupt controller with 32 interrupt inputs. An
-interrupt can be triggered by asserting the corresponding bit in the `irq`
-input of the core.
+PicoRV32核心内建一个具有32个中断输入的中断控制器。中断可以通过激活核心的`irq`输入中的相应位来触发。
 
-When the interrupt handler is started, the `eoi` End Of Interrupt (EOI) signals
-for the handled interrupts go high. The `eoi` signals go low again when the
-interrupt handler returns.
+当中断处理程序开始时，已处理的中断的`eoi`（中断结束）信号会变为高电平。当中断处理程序返回时，`eoi`信号会变为低电平。
 
-The IRQs 0-2 can be triggered internally by the following built-in interrupt sources:
+IRQ 0-2可以由以下内建的中断源内部触发：
 
-| IRQ | Interrupt Source                    |
-| ---:| ------------------------------------|
-|   0 | Timer Interrupt                     |
-|   1 | EBREAK/ECALL or Illegal Instruction |
-|   2 | BUS Error (Unalign Memory Access)   |
+| IRQ  | 中断源                            |
+| ---- | ---------------------------------- |
+|  0   | 定时器中断                         |
+|  1   | `EBREAK`/`ECALL` 或非法指令       |
+|  2   | 总线错误（未对齐的内存访问）      |
 
-This interrupts can also be triggered by external sources, such as co-processors
-connected via PCPI.
+这些中断也可以由外部源触发，如通过PCPI连接的协处理器。
 
-The core has 4 additional 32-bit registers `q0 .. q3` that are used for IRQ
-handling. When the IRQ handler is called, the register `q0` contains the return
-address and `q1` contains a bitmask of all IRQs to be handled. This means one
-call to the interrupt handler needs to service more than one IRQ when more than
-one bit is set in `q1`.
+该核心有4个额外的32位寄存器`q0..q3`，用于IRQ处理。当中断处理程序被调用时，寄存器`q0`包含返回地址，`q1`包含要处理的所有IRQ的位掩码。这意味着，当`q1`中设置了多个位时，调用中断处理程序需要处理多个IRQ。
 
-When support for compressed instructions is enabled, then the LSB of q0 is set
-when the interrupted instruction is a compressed instruction. This can be used if
-the IRQ handler wants to decode the interrupted instruction.
+当启用压缩指令支持时，`q0`的最低有效位（LSB）会被设置，当中断指令是压缩指令时。中断处理程序可以使用这个信息来解码中断指令。
 
-Registers `q2` and `q3` are uninitialized and can be used as temporary storage
-when saving/restoring register values in the IRQ handler.
+寄存器`q2`和`q3`未初始化，可以在IRQ处理中作为临时存储。
 
-All of the following instructions are encoded under the `custom0` opcode. The f3
-and rs2 fields are ignored in all this instructions.
+以下所有指令都使用`custom0`操作码进行编码。在这些指令中，`f3`和`rs2`字段会被忽略。
 
-See [firmware/custom_ops.S](firmware/custom_ops.S) for GNU assembler macros that
-implement mnemonics for this instructions.
+请参见[firmware/custom_ops.S](firmware/custom_ops.S)中实现这些指令的GNU汇编宏。
 
-See [firmware/start.S](firmware/start.S) for an example implementation of an
-interrupt handler assembler wrapper, and [firmware/irq.c](firmware/irq.c) for
-the actual interrupt handler.
+请参见[firmware/start.S](firmware/start.S)中中断处理程序汇编包装器的示例实现，和[firmware/irq.c](firmware/irq.c)中实际的中断处理程序。
 
 #### getq rd, qs
 
-This instruction copies the value from a q-register to a general-purpose
-register.
+该指令将q寄存器中的值复制到一个通用寄存器中。
 
     0000000 ----- 000XX --- XXXXX 0001011
     f7      rs2   qs    f3  rd    opcode
 
-Example:
+示例：
 
     getq x5, q2
 
 #### setq qd, rs
 
-This instruction copies the value from a general-purpose register to a
-q-register.
+该指令将一个通用寄存器的值复制到一个q寄存器中。
 
     0000001 ----- XXXXX --- 000XX 0001011
     f7      rs2   rs    f3  qd    opcode
 
-Example:
+示例：
 
     setq q2, x5
 
 #### retirq
 
-Return from interrupt. This instruction copies the value from `q0`
-to the program counter and re-enables interrupts.
+从中断返回。该指令将`q0`中的值复制到程序计数器，并重新启用中断。
 
     0000010 ----- 00000 --- 00000 0001011
     f7      rs2   rs    f3  rd    opcode
 
-Example:
+示例：
 
     retirq
 
 #### maskirq
 
-The "IRQ Mask" register contains a bitmask of masked (disabled) interrupts.
-This instruction writes a new value to the irq mask register and reads the old
-value.
+“IRQ掩码”寄存器包含一个被掩码（禁用）的中断的位掩码。该指令写入新值到IRQ掩码寄存器，并读取旧值。
 
     0000011 ----- XXXXX --- XXXXX 0001011
     f7      rs2   rs    f3  rd    opcode
 
-Example:
+示例：
 
     maskirq x1, x2
 
-The processor starts with all interrupts disabled.
+处理器开始时所有中断都是禁用的。
 
-An illegal instruction or bus error while the illegal instruction or bus error
-interrupt is disabled will cause the processor to halt.
+在非法指令或总线错误被禁用的情况下，会导致处理器停止。
 
 #### waitirq
 
-Pause execution until an interrupt becomes pending. The bitmask of pending IRQs
-is written to `rd`.
+暂停执行，直到某个中断变为待处理状态。待处理IRQ的位掩码会被写入到`rd`。
 
     0000100 ----- 00000 --- XXXXX 0001011
     f7      rs2   rs    f3  rd    opcode
 
-Example:
+示例：
 
     waitirq x1
 
 #### timer
 
-Reset the timer counter to a new value. The counter counts down clock cycles and
-triggers the timer interrupt when transitioning from 1 to 0. Setting the
-counter to zero disables the timer. The old value of the counter is written to
-`rd`.
+将计时器计数器重置为一个新值。计数器倒计时，直到从1到0转换时触发定时器中断。将计数器设置为零禁用定时器。计数器的旧值会被写入到`rd`。
 
     0000101 ----- XXXXX --- XXXXX 0001011
     f7      rs2   rs    f3  rd    opcode
 
-Example:
+示例：
 
     timer x1, x2
 
 
-Building a pure RV32I Toolchain
+构建纯RV32I工具链
 -------------------------------
 
-TL;DR: Run the following commands to build the complete toolchain:
+简要说明：运行以下命令构建完整的工具链：
 
     make download-tools
     make -j$(nproc) build-tools
 
-The default settings in the [riscv-tools](https://github.com/riscv/riscv-tools) build
-scripts will build a compiler, assembler and linker that can target any RISC-V ISA,
-but the libraries are built for RV32G and RV64G targets. Follow the instructions
-below to build a complete toolchain (including libraries) that target a pure RV32I
-CPU.
+[riscv-tools](https://github.com/riscv/riscv-tools)构建脚本中的默认设置将构建一个编译器、汇编器和链接器，可以支持任何RISC-V ISA，但库是为RV32G和RV64G目标构建的。按照以下说明，构建一个完整的工具链（包括库），以支持纯RV32I CPU。
 
-The following commands will build the RISC-V GNU toolchain and libraries for a
-pure RV32I target, and install it in `/opt/riscv32i`:
+以下命令将构建RISC-V GNU工具链和库，并安装到`/opt/riscv32i`：
 
-    # Ubuntu packages needed:
+    # 需要的Ubuntu包：
     sudo apt-get install autoconf automake autotools-dev curl libmpc-dev \
             libmpfr-dev libgmp-dev gawk build-essential bison flex texinfo \
 	    gperf libtool patchutils bc zlib1g-dev git libexpat1-dev
@@ -645,96 +515,85 @@ pure RV32I target, and install it in `/opt/riscv32i`:
     ../configure --with-arch=rv32i --prefix=/opt/riscv32i
     make -j$(nproc)
 
-The commands will all be named using the prefix `riscv32-unknown-elf-`, which
-makes it easy to install them side-by-side with the regular riscv-tools (those
-are using the name prefix `riscv64-unknown-elf-` by default).
+这些命令的工具将使用`riscv32-unknown-elf-`前缀，这样就可以与常规的riscv-tools（它们使用默认的`riscv64-unknown-elf-`前缀）并行安装。
 
-Alternatively you can simply use one of the following make targets from PicoRV32's
-Makefile to build a `RV32I[M][C]` toolchain. You still need to install all
-prerequisites, as described above. Then run any of the following commands in the
-PicoRV32 source directory:
+或者，您可以直接使用PicoRV32的Makefile中的以下make目标，来构建一个`RV32I[M][C]`工具链。仍然需要按照上面描述的步骤安装所有先决条件。然后，在PicoRV32源目录中运行以下任意命令：
 
-| Command                                  | Install Directory  | ISA       |
-|:---------------------------------------- |:------------------ |:--------  |
-| `make -j$(nproc) build-riscv32i-tools`   | `/opt/riscv32i/`   | `RV32I`   |
-| `make -j$(nproc) build-riscv32ic-tools`  | `/opt/riscv32ic/`  | `RV32IC`  |
-| `make -j$(nproc) build-riscv32im-tools`  | `/opt/riscv32im/`  | `RV32IM`  |
-| `make -j$(nproc) build-riscv32imc-tools` | `/opt/riscv32imc/` | `RV32IMC` |
+| 命令                                   | 安装目录        | ISA      |
+|:-------------------------------------- |:--------------- |:-------- |
+| `make -j$(nproc) build-riscv32i-tools` | `/opt/riscv32i/`| `RV32I`  |
+| `make -j$(nproc) build-riscv32ic-tools`| `/opt/riscv32ic/`| `RV32IC`|
+| `make -j$(nproc) build-risc
 
-Or simply run `make -j$(nproc) build-tools` to build and install all four tool chains.
+v32im-tools`| `/opt/riscv32im/`| `RV32IM`|
+| `make -j$(nproc) build-riscv32imc-tools`| `/opt/riscv32imc/`| `RV32IMC`|
 
-By default calling any of those make targets will (re-)download the toolchain
-sources. Run `make download-tools` to download the sources to `/var/cache/distfiles/`
-once in advance.
+或者，简单地运行`make -j$(nproc) build-tools`来构建并安装所有四个工具链。
 
-*Note: These instructions are for git rev 411d134 (2018-02-14) of riscv-gnu-toolchain.*
+默认情况下，调用这些make目标时会（重新）下载工具链源代码。运行`make download-tools`以将源代码下载到`/var/cache/distfiles/`一次。
+
+*注意：这些说明适用于riscv-gnu-toolchain的git版本411d134（2018-02-14）。*
 
 
-Linking binaries with newlib for PicoRV32
+使用newlib为PicoRV32链接二进制文件
 -----------------------------------------
 
-The tool chains (see last section for install instructions) come with a version of
-the newlib C standard library.
+这些工具链（参见上一部分的安装说明）附带一个版本的
+newlib C标准库。
 
-Use the linker script [firmware/riscv.ld](firmware/riscv.ld) for linking binaries
-against the newlib library. Using this linker script will create a binary that
-has its entry point at 0x10000. (The default linker script does not have a static
-entry point, thus a proper ELF loader would be needed that can determine the
-entry point at runtime while loading the program.)
+使用链接脚本[firmware/riscv.ld](firmware/riscv.ld)来链接二进制文件
+与newlib库。使用此链接脚本将创建一个其入口点位于0x10000的二进制文件。（默认链接脚本没有静态
+入口点，因此需要一个能够在加载程序时确定入口点的ELF加载器。）
 
-Newlib comes with a few syscall stubs. You need to provide your own implementation
-of those syscalls and link your program with this implementation, overwriting the
-default stubs from newlib. See `syscalls.c` in [scripts/cxxdemo/](scripts/cxxdemo/)
-for an example of how to do that.
+Newlib附带了一些syscall存根。您需要提供自己实现这些syscall的代码并将其与程序链接，
+以覆盖newlib中的默认存根。请参见`syscalls.c`在[脚本/cxxdemo/](scripts/cxxdemo/)
+中的示例，了解如何操作。
 
 
-Evaluation: Timing and Utilization on Xilinx 7-Series FPGAs
+评估：在Xilinx 7系列FPGA上的时序和利用率
 -----------------------------------------------------------
 
-The following evaluations have been performed with Vivado 2017.3.
+以下评估使用Vivado 2017.3进行。
 
-#### Timing on Xilinx 7-Series FPGAs
+#### 在Xilinx 7系列FPGA上的时序
 
-The `picorv32_axi` module with enabled `TWO_CYCLE_ALU` has been placed and
-routed for Xilinx Artix-7T, Kintex-7T, Virtex-7T, Kintex UltraScale, and Virtex
-UltraScale devices in all speed grades. A binary search is used to find the
-shortest clock period for which the design meets timing.
+启用`TWO_CYCLE_ALU`的`picorv32_axi`模块已在所有速度等级的
+Xilinx Artix-7T、Kintex-7T、Virtex-7T、Kintex UltraScale和Virtex UltraScale器件上进行了放置和布线。
+使用二分查找来确定设计满足时序的最短时钟周期。
 
-See `make table.txt` in [scripts/vivado/](scripts/vivado/).
+参见[scripts/vivado/](scripts/vivado/)中的`make table.txt`。
 
-| Device                    | Device               | Speedgrade | Clock Period (Freq.) |
-|:------------------------- |:---------------------|:----------:| --------------------:|
-| Xilinx Kintex-7T          | xc7k70t-fbg676-2     | -2         |     2.4 ns (416 MHz) |
-| Xilinx Kintex-7T          | xc7k70t-fbg676-3     | -3         |     2.2 ns (454 MHz) |
-| Xilinx Virtex-7T          | xc7v585t-ffg1761-2   | -2         |     2.3 ns (434 MHz) |
-| Xilinx Virtex-7T          | xc7v585t-ffg1761-3   | -3         |     2.2 ns (454 MHz) |
-| Xilinx Kintex UltraScale  | xcku035-fbva676-2-e  | -2         |     2.0 ns (500 MHz) |
-| Xilinx Kintex UltraScale  | xcku035-fbva676-3-e  | -3         |     1.8 ns (555 MHz) |
-| Xilinx Virtex UltraScale  | xcvu065-ffvc1517-2-e | -2         |     2.1 ns (476 MHz) |
-| Xilinx Virtex UltraScale  | xcvu065-ffvc1517-3-e | -3         |     2.0 ns (500 MHz) |
-| Xilinx Kintex UltraScale+ | xcku3p-ffva676-2-e   | -2         |     1.4 ns (714 MHz) |
-| Xilinx Kintex UltraScale+ | xcku3p-ffva676-3-e   | -3         |     1.3 ns (769 MHz) |
-| Xilinx Virtex UltraScale+ | xcvu3p-ffvc1517-2-e  | -2         |     1.5 ns (666 MHz) |
-| Xilinx Virtex UltraScale+ | xcvu3p-ffvc1517-3-e  | -3         |     1.4 ns (714 MHz) |
+| 设备                     | 设备               | 速度等级 | 时钟周期（频率） |
+|:------------------------- |:-------------------|:--------:| ----------------:|
+| Xilinx Kintex-7T          | xc7k70t-fbg676-2    | -2       | 2.4 ns (416 MHz) |
+| Xilinx Kintex-7T          | xc7k70t-fbg676-3    | -3       | 2.2 ns (454 MHz) |
+| Xilinx Virtex-7T          | xc7v585t-ffg1761-2  | -2       | 2.3 ns (434 MHz) |
+| Xilinx Virtex-7T          | xc7v585t-ffg1761-3  | -3       | 2.2 ns (454 MHz) |
+| Xilinx Kintex UltraScale  | xcku035-fbva676-2-e | -2       | 2.0 ns (500 MHz) |
+| Xilinx Kintex UltraScale  | xcku035-fbva676-3-e | -3       | 1.8 ns (555 MHz) |
+| Xilinx Virtex UltraScale  | xcvu065-ffvc1517-2-e| -2       | 2.1 ns (476 MHz) |
+| Xilinx Virtex UltraScale  | xcvu065-ffvc1517-3-e| -3       | 2.0 ns (500 MHz) |
+| Xilinx Kintex UltraScale+ | xcku3p-ffva676-2-e  | -2       | 1.4 ns (714 MHz) |
+| Xilinx Kintex UltraScale+ | xcku3p-ffva676-3-e  | -3       | 1.3 ns (769 MHz) |
+| Xilinx Virtex UltraScale+ | xcvu3p-ffvc1517-2-e | -2       | 1.5 ns (666 MHz) |
+| Xilinx Virtex UltraScale+ | xcvu3p-ffvc1517-3-e | -3       | 1.4 ns (714 MHz) |
 
-#### Utilization on Xilinx 7-Series FPGAs
+#### 在Xilinx 7系列FPGA上的资源利用率
 
-The following table lists the resource utilization in area-optimized synthesis
-for the following three cores:
+以下表格列出了在资源优化综合下三种核心的资源利用情况：
 
-- **PicoRV32 (small):** The `picorv32` module without counter instructions,
-  without two-stage shifts, with externally latched `mem_rdata`, and without
-  catching of misaligned memory accesses and illegal instructions.
+- **PicoRV32（小型）**：`picorv32`模块，不包括计数器指令，
+  不使用两级移位，外部锁存`mem_rdata`，且不捕获未对齐的内存访问和非法指令。
 
-- **PicoRV32 (regular):** The `picorv32` module in its default configuration.
+- **PicoRV32（常规）**：`picorv32`模块的默认配置。
 
-- **PicoRV32 (large):** The `picorv32` module with enabled PCPI, IRQ, MUL,
-  DIV, BARREL_SHIFTER, and COMPRESSED_ISA features.
+- **PicoRV32（大型）**：`picorv32`模块，启用了PCPI、IRQ、MUL、
+  DIV、BARREL_SHIFTER和COMPRESSED_ISA特性。
 
-See `make area` in [scripts/vivado/](scripts/vivado/).
+参见[scripts/vivado/](scripts/vivado/)中的`make area`。
 
-| Core Variant       | Slice LUTs | LUTs as Memory | Slice Registers |
-|:------------------ | ----------:| --------------:| ---------------:|
-| PicoRV32 (small)   |        761 |             48 |             442 |
-| PicoRV32 (regular) |        917 |             48 |             583 |
-| PicoRV32 (large)   |       2019 |             88 |            1085 |
+| 核变体               | Slice LUTs | LUT作为内存 | Slice寄存器 |
+|:-------------------- | ----------:| -----------:| -----------:|
+| PicoRV32（小型）     |        761 |            48 |            442 |
+| PicoRV32（常规）     |        917 |            48 |            583 |
+| PicoRV32（大型）     |       2019 |            88 |           1085 |

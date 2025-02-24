@@ -87,7 +87,7 @@ module picorv32 #(
 	parameter [31:0] PROGADDR_IRQ = 32'h 0000_0010,
 	parameter [31:0] STACKADDR = 32'h ffff_ffff
 ) (
-	input clk, resetn,
+	input clk, resetn, // 时钟信号和低电平信号
 	output reg trap,
 
 	output reg        mem_valid,
