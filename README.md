@@ -27,7 +27,7 @@ PicoRV32是自由开源硬件，遵循 [ISC许可证](http://en.wikipedia.org/wi
 - [IRQ处理的自定义指令](#IRQ处理的自定义指令)
 - [构建纯RV32I工具链](#构建纯RV32I工具链)
 - [使用newlib为PicoRV32链接二进制文件](#使用newlib为PicoRV32链接二进制文件)
-- [评估：在Xilinx 7系列FPGA上的时序和利用率](#评估：在Xilinx 7系列FPGA上的时序和利用率)
+- [评估：在Xilinx 7系列FPGA上的时序和利用率](#评估：在Xilinx7系列FPGA上的时序和利用率)
 
 
 特性与典型应用
@@ -555,7 +555,7 @@ Newlib附带了一些syscall存根。您需要提供自己实现这些syscall的
 
 以下评估使用Vivado 2017.3进行。
 
-#### 在Xilinx 7系列FPGA上的时序
+#### 在Xilinx7系列FPGA上的时序
 
 启用`TWO_CYCLE_ALU`的`picorv32_axi`模块已在所有速度等级的
 Xilinx Artix-7T、Kintex-7T、Virtex-7T、Kintex UltraScale和Virtex UltraScale器件上进行了放置和布线。
