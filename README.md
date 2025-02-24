@@ -9,7 +9,7 @@ PicoRV32 是一个实现 [RISC-V RV32IMC 指令集](http://riscv.org/)的CPU核�
 
 工具（gcc、binutils等）可以通过 [RISC-V官网](https://riscv.org/software-status/) 获取。
 PicoRV32附带的示例期望安装了不同的RV32工具链，路径为`/opt/riscv32i[m][c]`。详细信息请参见
-[下面的构建说明](#building-a-pure-rv32i-toolchain)。
+[下面的构建说明](#构建纯RV32I工具链)。
 许多Linux发行版现在包含了RISC-V的工具链（例如，Ubuntu 20.04包含`gcc-riscv64-unknown-elf`）。
 要使用这些工具链进行编译，请相应设置`TOOLCHAIN_PREFIX`（例如，`make TOOLCHAIN_PREFIX=riscv64-unknown-elf-`）。
 
@@ -18,16 +18,16 @@ PicoRV32是自由开源硬件，遵循 [ISC许可证](http://en.wikipedia.org/wi
 
 #### 目录
 
-- [特性与典型应用](#features-and-typical-applications)
-- [本仓库中的文件](#files-in-this-repository)
-- [Verilog模块参数](#verilog-module-parameters)
-- [每条指令的周期性能](#cycles-per-instruction-performance)
-- [PicoRV32原生内存接口](#picorv32-native-memory-interface)
-- [Pico协处理器接口(PCPI)](#pico-co-processor-interface-pcpi)
-- [IRQ处理的自定义指令](#custom-instructions-for-irq-handling)
-- [构建纯RV32I工具链](#building-a-pure-rv32i-toolchain)
-- [使用newlib为PicoRV32链接二进制文件](#linking-binaries-with-newlib-for-picorv32)
-- [评估：在Xilinx 7系列FPGA上的时序和利用率](#evaluation-timing-and-utilization-on-xilinx-7-series-fpgas)
+- [特性与典型应用](#特性与典型应用)
+- [本仓库中的文件](#本仓库中的文件)
+- [Verilog模块参数](#Verilog模块参数)
+- [每条指令的周期性能](#每条指令的周期性能)
+- [PicoRV32原生内存接口](#PicoRV32原生内存接口)
+- [Pico协处理器接口(PCPI)](#Pico协处理器接口(PCPI))
+- [IRQ处理的自定义指令](#IRQ处理的自定义指令)
+- [构建纯RV32I工具链](#构建纯RV32I工具链)
+- [使用newlib为PicoRV32链接二进制文件](#使用newlib为PicoRV32链接二进制文件)
+- [评估：在Xilinx 7系列FPGA上的时序和利用率](#评估：在Xilinx 7系列FPGA上的时序和利用率)
 
 
 特性与典型应用
