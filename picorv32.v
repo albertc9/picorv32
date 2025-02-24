@@ -14,8 +14,8 @@
  *  WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN
  *  ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
  *  OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
- *
- */
+ * / * * / after line 60 are from Albert, and / / are from Wolf.
+*/
 
 /* verilator lint_off WIDTH */
 /* verilator lint_off PINMISSING */
@@ -120,7 +120,7 @@ module picorv32 #(
 	input      [31:0] irq,
 	output reg [31:0] eoi,
 
-`ifdef RISCV_FORMAL
+`ifdef RISCV_FORMAL /* RISCV formal verification*/
 	output reg        rvfi_valid,
 	output reg [63:0] rvfi_order,
 	output reg [31:0] rvfi_insn,
