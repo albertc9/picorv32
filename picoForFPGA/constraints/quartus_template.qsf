@@ -1,0 +1,55 @@
+# PicoSoC Quartus约束文件模板
+# ================================
+
+# 项目设置
+set_global_assignment -name FAMILY "Cyclone V"
+set_global_assignment -name DEVICE 5CEBA4F23C7
+set_global_assignment -name TOP_LEVEL_ENTITY picosoc
+set_global_assignment -name ORIGINAL_QUARTUS_VERSION 18.1.0
+set_global_assignment -name PROJECT_CREATION_TIME_DATE "12:00:00  JANUARY 01, 2024"
+set_global_assignment -name LAST_QUARTUS_VERSION 18.1.0
+set_global_assignment -name PROJECT_OUTPUT_DIRECTORY output_files
+set_global_assignment -name MIN_CORE_JUNCTION_TEMP 0
+set_global_assignment -name MAX_CORE_JUNCTION_TEMP 85
+set_global_assignment -name ERROR_CHECK_FREQUENCY_DIVISOR 1
+set_global_assignment -name NOMINAL_CORE_SUPPLY_VOLTAGE 1.1V
+
+# 时钟约束
+set_global_assignment -name TIMEQUEST_MULTICORNER_ANALYSIS ON
+create_clock -name "clk" -period 10.000 [get_ports { clk }]
+
+# 引脚分配
+set_location_assignment PIN_P11 -to clk
+set_location_assignment PIN_R20 -to resetn
+set_location_assignment PIN_B14 -to uart_tx
+set_location_assignment PIN_A14 -to uart_rx
+set_location_assignment PIN_A13 -to flash_cs_n
+set_location_assignment PIN_B13 -to flash_clk
+set_location_assignment PIN_A12 -to flash_mosi
+set_location_assignment PIN_B12 -to flash_miso
+set_location_assignment PIN_A11 -to gpio[0]
+set_location_assignment PIN_B11 -to gpio[1]
+set_location_assignment PIN_A10 -to gpio[2]
+set_location_assignment PIN_B10 -to gpio[3]
+
+# IO标准
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to clk
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to resetn
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to uart_tx
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to uart_rx
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to flash_cs_n
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to flash_clk
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to flash_mosi
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to flash_miso
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to gpio[0]
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to gpio[1]
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to gpio[2]
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to gpio[3]
+
+# 时序约束
+set_false_path -from [get_ports { resetn }]
+set_false_path -to [get_ports { gpio[*] }]
+
+# 编译设置
+set_global_assignment -name NUM_PARALLEL_PROCESSORS ALL
+set_global_assignment -name AUTO_RAM_TO_LCELL_CONVERSION ON 

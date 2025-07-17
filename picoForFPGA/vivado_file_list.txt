@@ -1,0 +1,23 @@
+# PicoSoC for FPGA - Vivado项目文件列表
+# 按依赖顺序排列，可直接导入Vivado项目
+
+# 1. 核心CPU模块
+rtl/core/picorv32.v
+
+# 2. 外设模块
+rtl/peripheral/simpleuart.v
+rtl/peripheral/spiflash.v
+rtl/peripheral/spimemio.v
+
+# 3. 内存模块
+rtl/memory/ice40up5k_spram.v
+
+# 4. SoC集成模块
+rtl/soc/picorv32_soc.v
+
+# 5. SoC顶层模块 (最后添加)
+rtl/soc/picosoc.v
+
+# 6. 测试平台 (可选)
+testbench/simple_tb.v
+testbench/picosoc_tb.v 
