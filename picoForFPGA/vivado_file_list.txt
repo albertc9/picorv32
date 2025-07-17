@@ -12,12 +12,18 @@ rtl/peripheral/spimemio.v
 # 3. 内存模块
 rtl/memory/ice40up5k_spram.v
 
-# 4. SoC集成模块
-rtl/soc/picorv32_soc.v
+# 4. SoC顶层模块 (两个都需要添加)
+rtl/soc/picosoc.v          # 基础版本：完整接口
+rtl/soc/picosoc_top.v      # 端口优化版本：减少端口
 
-# 5. SoC顶层模块 (最后添加)
-rtl/soc/picosoc.v
+# 注意：根据项目需求选择其中一个作为顶层模块
+# - 需要完整接口：选择 picosoc.v 作为顶层
+# - 升腾/野火Mini等资源受限：选择 picosoc_top.v 作为顶层
 
-# 6. 测试平台 (可选)
+# 5. 测试平台 (可选)
 testbench/simple_tb.v
-testbench/picosoc_tb.v 
+testbench/picosoc_tb.v
+
+# 6. 约束文件 (根据硬件选择)
+constraints/vivado_template.xdc    # 通用约束模板
+constraints/artix7_mini.xdc        # 升腾/野火Mini专用约束 

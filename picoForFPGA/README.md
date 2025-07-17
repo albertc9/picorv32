@@ -8,7 +8,9 @@
 picoForFPGA/
 ├── rtl/                          # RTL设计文件
 │   ├── core/picorv32.v          # CPU核心
-│   ├── soc/picosoc.v            # SoC顶层
+│   ├── soc/                     # SoC相关模块
+│   │   ├── picosoc.v            # 基础SoC顶层（完整接口）
+│   │   └── picosoc_top.v        # 端口优化SoC顶层（减少端口）
 │   └── peripheral/               # 外设模块
 │       ├── simpleuart.v         # UART控制器
 │       ├── spiflash.v           # SPI Flash控制器
@@ -22,15 +24,14 @@ picoForFPGA/
 ├── testbench/                    # 测试平台
 │   └── picosoc_tb.v             # SoC测试平台
 ├── constraints/                  # 约束文件模板
-│   ├── vivado_template.xdc      # Vivado约束
-│   └── quartus_template.qsf     # Quartus约束
+│   ├── vivado_template.xdc      # Vivado通用约束
+│   ├── quartus_template.qsf     # Quartus约束
+│   └── artix7_mini.xdc          # 升腾/野火Mini Artix-7专用约束
 ├── scripts/                      # 辅助脚本
 │   ├── check_syntax.sh          # 语法检查
 │   ├── build_firmware.sh        # 固件构建
 │   ├── run_simulation.sh        # 仿真运行
-│   ├── start_vivado.sh          # Vivado启动
-│   ├── create_vivado_project.tcl # Vivado项目创建
-│   └── makehex.py               # HEX文件生成
+│   ├── makehex.py               # HEX文件生成
 ├── docs/                         # 文档
 │   └── soc_architecture.md      # SoC架构文档
 └── riscv-gnu-toolchain-riscv32i/ # RISC-V工具链
@@ -40,31 +41,32 @@ picoForFPGA/
 
 - **原生PicoRV32**: 基于官方PicoRV32 CPU核心
 - **完整SoC**: 包含CPU、外设、固件的完整系统
+- **双顶层设计**: 提供完整接口和端口优化两个版本
 - **Vivado友好**: 专为Vivado开发优化
 - **工具链集成**: 包含RISC-V工具链
 - **易扩展**: 清晰的模块化结构
 
-## 快速开始
+## 顶层模块说明
 
-### 1. 语法检查
-```bash
-./scripts/check_syntax.sh
-```
+### picosoc.v (基础版本)
+- **用途**: 完整的SoC接口，包含所有外设端口
+- **适用场景**: 
+  - 需要完整外设控制的项目
+  - 需要外部中断的项目
+  - 需要PCPI协处理器的项目
+  - 开发和调试阶段
+- **特点**: 提供最大的灵活性和控制能力
 
-### 2. 运行仿真
-```bash
-./scripts/run_simulation.sh
-```
-
-### 3. 构建固件
-```bash
-./scripts/build_firmware.sh
-```
-
-### 4. Vivado集成
-```bash
-./scripts/start_vivado.sh
-```
+### picosoc_top.v (端口优化版本)
+- **用途**: 减少外部端口数量，简化FPGA集成
+- **适用场景**:
+  - 升腾/野火Mini Artix-7等资源受限的FPGA
+  - 只需要基本功能（UART + Flash）的项目
+  - 生产环境部署
+- **特点**: 
+  - 仅暴露9个外部引脚
+  - QSPI Flash时钟复用优化
+  - 内部处理未使用的接口
 
 ## 内存映射
 
@@ -88,26 +90,34 @@ picoForFPGA/
 - 支持标准SPI Flash
 - 内存映射访问
 - 可配置SPI模式
+- **优化版本**: 时钟通过STARTUPE2输出到CCLK
 
 ## FPGA集成
 
-### Vivado集成
-1. 运行 `./scripts/start_vivado.sh` 创建项目
-2. 在Vivado中打开 `vivado_project/picosoc_fpga.xpr`
-3. 根据需要修改约束文件
-4. 综合和实现
-
-### 手动集成
+### 升腾/野火Mini Artix-7 (推荐使用优化版本)
 1. 在Vivado中创建新项目
 2. 按顺序添加RTL文件：
    - `rtl/core/picorv32.v`
    - `rtl/peripheral/simpleuart.v`
    - `rtl/peripheral/spiflash.v`
    - `rtl/peripheral/spimemio.v`
-   - `rtl/soc/picorv32_soc.v`
-   - `rtl/soc/picosoc.v`
-3. 设置顶层模块为 `picosoc`
-4. 添加约束文件
+   - `rtl/soc/picosoc.v` (基础版本)
+   - `rtl/soc/picosoc_top.v` (优化版本，设为顶层)
+3. 添加约束文件：`constraints/artix7_mini.xdc`
+4. 综合并生成比特流
+
+### 其他FPGA平台或需要完整接口
+1. 使用基础SoC模块：`rtl/soc/picosoc.v` (设为顶层)
+2. 参考约束模板：`constraints/vivado_template.xdc`
+3. 根据具体硬件调整引脚分配
+
+## 约束文件说明
+
+### artix7_mini.xdc
+- 专为升腾/野火Mini Artix-7 XC7A100T-FGG484设计
+- 包含完整的引脚分配和电气特性设置
+- 支持QSPI Flash的CCLK时钟复用
+- 优化的驱动强度和转换速率设置
 
 ## 许可证
 
