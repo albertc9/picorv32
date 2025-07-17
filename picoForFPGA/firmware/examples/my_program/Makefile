@@ -7,18 +7,19 @@ CC = $(RISCV_PREFIX)gcc
 OBJCOPY = $(RISCV_PREFIX)objcopy
 SIZE = $(RISCV_PREFIX)size
 
-# 编译选项
-CFLAGS = -march=rv32i -mabi=ilp32 -O2 -Wall -Wextra
+# 编译选项 - 添加乘法扩展支持
+CFLAGS = -march=rv32im -mabi=ilp32 -O2 -Wall -Wextra
 CFLAGS += -nostdlib -nostartfiles -ffreestanding
 CFLAGS += -I../../lib
 
-# 链接选项
-LDFLAGS = -march=rv32i -mabi=ilp32 -nostdlib -nostartfiles
+# 链接选项 - 添加乘法扩展支持
+LDFLAGS = -march=rv32im -mabi=ilp32 -nostdlib -nostartfiles
 LDFLAGS += -T../../linker/sections.lds
+LDFLAGS += -lgcc
 
-# 源文件
+# 源文件 - 包含所有固件库文件
 SOURCES = main.c
-LIB_SOURCES = ../../lib/print.c
+LIB_SOURCES = ../../lib/print.c ../../lib/irq.c ../../lib/hello.c ../../lib/sieve.c ../../lib/multest.c ../../lib/stats.c
 OBJECTS = $(SOURCES:.c=.o) $(LIB_SOURCES:.c=.o)
 
 # 目标文件
