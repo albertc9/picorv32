@@ -1,15 +1,15 @@
 /*
- * PicoRV32 通用链接脚本
- * 定义内存布局和段分配
+ * PicoRV32 Arty A7板链接脚本
+ * 针对Xilinx Arty A7-35T/100T板的特定内存布局
  */
 
 /* 内存定义 */
 MEMORY {
-    /* 内部SRAM */
-    RAM (rwx) : ORIGIN = 0x00000000, LENGTH = 64K
+    /* 内部BRAM - Arty A7有128KB BRAM */
+    RAM (rwx) : ORIGIN = 0x00000000, LENGTH = 128K
     
-    /* 程序Flash */
-    FLASH (rx) : ORIGIN = 0x00100000, LENGTH = 1M
+    /* 程序Flash - 16MB SPI Flash */
+    FLASH (rx) : ORIGIN = 0x00100000, LENGTH = 16M
 }
 
 /* 入口点 */
@@ -56,10 +56,10 @@ SECTIONS {
         _ebss = .;              /* BSS段结束 */
     } >RAM
     
-    /* 堆栈段 */
+    /* 堆栈段 - 使用BRAM顶部 */
     .stack : {
         . = ALIGN(16);
-        . = . + 4K;             /* 4KB栈空间 */
+        . = . + 16K;            /* 16KB栈空间 */
         . = ALIGN(16);
         _estack = .;            /* 栈顶 */
     } >RAM
@@ -68,7 +68,7 @@ SECTIONS {
     .heap : {
         . = ALIGN(4);
         _heap_start = .;        /* 堆开始 */
-        . = . + 8K;             /* 8KB堆空间 */
+        . = . + 32K;            /* 32KB堆空间 */
         . = ALIGN(4);
         _heap_end = .;          /* 堆结束 */
     } >RAM
@@ -106,4 +106,4 @@ SECTIONS {
         *(.note*)
         *(.eh_frame*)
     }
-}
+} 
